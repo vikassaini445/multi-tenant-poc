@@ -78,6 +78,7 @@ async function bootstrap(): Promise<void> {
 }
 
 async function migrate(): Promise<void> {
+  const appRole = credentialsFrom(requireEnv('DATABASE_URL')).user;
   await withClient(requireEnv('MIGRATION_DATABASE_URL'), async (client) => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -94,6 +95,8 @@ async function migrate(): Promise<void> {
       const sql = readFileSync(join(dir, file), 'utf8');
       await client.query('BEGIN');
       try {
+        // Lets migrations GRANT to the app role without hard-coding its name.
+        await client.query("SELECT set_config('migration.app_role', $1, true)", [appRole]);
         await client.query(sql);
         await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [file]);
         await client.query('COMMIT');
