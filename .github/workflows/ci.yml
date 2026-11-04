@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  security-tests:
+    runs-on: ubuntu-latest
+    # A hung test run (e.g. a leaked DB connection) must fail the job, not stall it.
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mt_poc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mt_poc"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # Superuser: used ONLY by the bootstrap step that creates the two roles.
+      ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/mt_poc
+      # Owner role: runs migrations and seed.
+      MIGRATION_DATABASE_URL: postgres://mt_owner:ci_owner_password@localhost:5432/mt_poc
+      # Application role (NOSUPERUSER, NOBYPASSRLS, not table owner): the API and
+      # every test connect with this. Each suite asserts it at runtime.
+      DATABASE_URL: postgres://mt_app:ci_app_password@localhost:5432/mt_poc
+      JWT_SECRET: ci-only-secret-0123456789abcdef0123456789abcdef
+      JWT_ISSUER: mt-poc-auth
+      JWT_AUDIENCE: mt-poc-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Refuse skipped or focused tests
+        # .skip/.only/xit would let a security test silently not run.
+        run: |
+          if grep -rnE '\b(it|describe|test)\.(skip|only|todo)\(|\b(xit|xdescribe|fit|fdescribe)\(' test/; then
+            echo "::error::Skipped or focused tests are not allowed"
+            exit 1
+          fi
+
+      - name: Bootstrap roles (superuser)
+        run: npm run db:bootstrap
+
+      - name: Run migrations (owner role)
+        run: npm run db:migrate
+
+      - name: Seed (owner role, under RLS)
+        run: npm run db:seed
+
+      - name: Security & integration tests (application role)
+        # Unset so no test can reach the superuser connection.
+        run: env -u ADMIN_DATABASE_URL -u MIGRATION_DATABASE_URL npm test
+
+      - name: Build
+        run: npm run build

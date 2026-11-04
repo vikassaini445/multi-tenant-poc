@@ -1,3 +1,12 @@
+# Local development only: the passwords and JWT secret below are dev defaults.
+#
+#   docker compose up -d postgres     # just the database (host port 5434)
+#   docker compose up --build         # database + migrations + API (port 3000)
+x-db-urls: &db-urls
+  ADMIN_DATABASE_URL: postgres://postgres:postgres@postgres:5432/mt_poc
+  MIGRATION_DATABASE_URL: postgres://mt_owner:owner_dev_password@postgres:5432/mt_poc
+  DATABASE_URL: postgres://mt_app:app_dev_password@postgres:5432/mt_poc
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,6 +23,32 @@ services:
       retries: 30
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  # One-shot: create roles (superuser), apply migrations and seed (owner role).
+  migrate:
+    build: .
+    command: ["node", "dist/scripts/migrate.js", "bootstrap", "migrate", "seed"]
+    environment:
+      <<: *db-urls
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The API only ever receives the application role's credentials.
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://mt_app:app_dev_password@postgres:5432/mt_poc
+      DB_POOL_MAX: "10"
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string-at-least-32-chars}
+      JWT_ISSUER: mt-poc-auth
+      JWT_AUDIENCE: mt-poc-api
+      PORT: "3000"
+    ports:
+      - "${API_HOST_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
