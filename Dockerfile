@@ -15,6 +15,8 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 # Read by dist/scripts/migrate.js (the one-shot `migrate` compose service).
 COPY database ./database
+# Demo page served at / when DEMO_LOGIN_ENABLED=true.
+COPY public ./public
 USER node
 EXPOSE 3000
 CMD ["node", "dist/src/main.js"]

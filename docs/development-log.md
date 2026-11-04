@@ -256,3 +256,47 @@ repository has no remote yet. It was validated locally as described above.
 | Connection/transaction leaks | ✅ | `afterEach` pool counts; M10, M11; `idle_in_transaction_session_timeout=30s` |
 
 Known limitations are listed in the README ("Security limitations of this POC").
+
+---
+
+## Phase 7 — Browser demo page (follow-up request)
+
+**Prompts:** [prompts/02-follow-up-prompts.md](prompts/02-follow-up-prompts.md).
+
+**Problem reported:** after starting the API, opening `http://localhost:3000/`
+showed a 404 and the user reported "project is not running".
+
+**Diagnosis (actually checked):** the server *was* running — node listening on
+:3000, Nest log "successfully started", `GET /patients` → 401. The real gap:
+the project had no way to use it from a browser. `/` has no route (404) and
+`/patients` needs a Bearer JWT that a browser address bar cannot send (401),
+and tokens could only be minted with a CLI script. Claude Code's first reply
+explained this but did not solve the user's actual need; the second request
+("fix it i need to open this") made the requirement explicit.
+
+**What was done (tests first):**
+- `test/demo-login.e2e-spec.ts` written first; red run: 4 visible failures
+  `Expected: 201 / 401, Received: 404`.
+- `src/demo/demo.controller.ts`: `GET /` (page), `GET /demo.js`,
+  `POST /auth/demo-login`. Users `alice` → Tenant A, `bob` → Tenant B, mapped on
+  the server; body `tenant_id` ignored; constant-time password comparison; the
+  whole feature 404s unless `DEMO_LOGIN_ENABLED=true`.
+- `public/index.html`, `public/demo.js`: no framework; CSP
+  `script-src 'self'` (no inline JS); token kept in memory; all output via
+  `textContent`.
+- `.env.example`, compose `api` service, `Dockerfile` (copies `public/`), README.
+
+**Decision:** this departs from the original prompt's "no unnecessary frontend
+code" — added only because the user explicitly asked to open the project in a
+browser. It is off by default and in CI, so the security surface of the
+original POC is unchanged unless the flag is set.
+
+**Verification (actually run):**
+- Full suite: 7 suites, **74 passed, 0 failed, 0 pending**, exit 0.
+- Running server: `GET /` 200 with the CSP header, `/demo.js` 200, demo login
+  as alice → token → `/patients` → Alice Anderson, Aaron Abbott.
+- Headless Chrome driven through the DevTools protocol: login as alice →
+  "Load my patients" HTTP 200, 2 Tenant A patients → "Try to read the other
+  tenant" (Tenant B ID in `X-Tenant-Id` and `?tenant_id=`) HTTP 200, still only
+  Tenant A's 2 patients → "Call without a token" HTTP 401. Only console error:
+  that intentional 401. No script/CSP errors.

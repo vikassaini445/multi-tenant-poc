@@ -33,6 +33,7 @@ PostgreSQL (role mt_app) ── RLS policies on patients filter by app.current_t
 | `src/database/` | `pg.Pool` provider, `TenantTransactionService` |
 | `src/tenants/` | Tenant ID (UUID) validation |
 | `src/patients/` | `GET /patients` controller and service |
+| `src/demo/`, `public/` | Optional browser demo page + demo login (off unless `DEMO_LOGIN_ENABLED=true`) |
 | `database/migrations/` | Schema, grants, RLS policies (applied in filename order) |
 | `database/seed/` | Two tenants, two patients each |
 | `scripts/migrate.ts` | `bootstrap` / `migrate` / `seed` runner |
@@ -109,6 +110,22 @@ twice: in the JWT guard and again in `TenantTransactionService`.
 tests exercise the database's enforcement. Adding one as defense in depth is
 reasonable in production, but it would mask an RLS regression in these tests.
 
+## Browser demo
+
+With `DEMO_LOGIN_ENABLED=true` (set in `.env.example` and Docker Compose),
+open **http://localhost:3000/**, log in as `alice` (Tenant A) or `bob`
+(Tenant B) with password `demo-password` (`DEMO_PASSWORD`), then:
+
+- **Load my patients** → only your tenant's patients.
+- **Try to read the other tenant** → sends the other tenant's ID in
+  `X-Tenant-Id` and `?tenant_id=`; it is ignored, you still get only your own.
+- **Call without a token** → 401.
+
+`POST /auth/demo-login {"username","password"}` maps the user to its tenant
+**on the server**; a `tenant_id` in the login body is ignored. With the flag
+unset (the default, and in CI) the page and the endpoint return 404. The page
+uses a strict CSP (no inline scripts) and keeps the token in memory only.
+
 ## API
 
 ### `GET /patients`
@@ -159,7 +176,7 @@ npm ci
 docker compose up -d postgres   # start PostgreSQL
 npm run db:setup                # bootstrap roles + migrations + seed
                                 # (or individually: db:bootstrap, db:migrate, db:seed)
-npm run start:dev               # API on :3000
+npm run start:dev               # API on :3000 — open http://localhost:3000/ for the demo page
 npm test                        # all integration tests (real PostgreSQL, app role)
 bash scripts/mutation-check.sh  # optional: prove the tests catch broken controls
 ```
@@ -187,6 +204,7 @@ non-`BYPASSRLS`, non-owner role.
 | `connection-pool.e2e-spec.ts` | **Test D**: pool size 1, A then B on the same backend PID; no context after commit/rollback/SQL error; 40 concurrent service calls, 30 concurrent HTTP requests, interleaved transactions on a 4-connection pool; no leaked connections after any test |
 | `database-hardening.e2e-spec.ts` | RLS enabled + forced, 4 policies, app role cannot disable/alter RLS, `SET ROLE`, `TRUNCATE`, or bypass with `row_security=off` |
 | `error-handling.e2e-spec.ts` | DB failure gives a generic 500 |
+| `demo-login.e2e-spec.ts` | Demo users get only their own tenant; body `tenant_id` ignored; bad credentials 401; disabled by default (404) |
 
 `scripts/mutation-check.sh` introduces 13 security bugs one at a time (e.g.
 `USING (true)`, session-level `SET`, honoring `X-Tenant-Id`, skipping JWT
@@ -216,6 +234,8 @@ There is no `|| true` anywhere; Jest's non-zero exit fails the step, and a
   injection in the app could switch tenant. Production mitigations: no dynamic
   SQL, or a `SECURITY DEFINER` function that derives the tenant from a signed
   value.
+- **Demo login is not real authentication**: one shared password, no rate
+  limiting or lockout. Keep `DEMO_LOGIN_ENABLED` off anywhere but a local demo.
 - **Auth is a stand-in.** HS256 with a shared secret and a CLI to mint tokens.
   Production would use an IdP with asymmetric keys (RS256/EdDSA, JWKS),
   key rotation, and token revocation.

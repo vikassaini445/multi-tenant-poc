@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tenant Isolation Demo</title>
+  <style>
+    :root {
+      --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5c6577; --border: #dde1e8;
+      --accent: #2f5bd3; --ok: #1d7a46; --bad: #b42318; --code: #f0f2f6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12151b; --card: #1a1f27; --text: #e6e9ef; --muted: #9aa3b2; --border: #2c3340;
+        --accent: #7c9cf5; --ok: #4cc38a; --bad: #f97066; --code: #232a35;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.lead { color: var(--muted); margin: 0 0 24px; }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+    label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+    select, input { font: inherit; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); min-width: 180px; }
+    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+    button.secondary { background: transparent; color: var(--accent); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .who { margin-top: 12px; font-size: 14px; color: var(--muted); }
+    .who strong { color: var(--text); }
+    .status { display: inline-block; font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+    .status.ok { color: var(--ok); border: 1px solid var(--ok); }
+    .status.bad { color: var(--bad); border: 1px solid var(--bad); }
+    .explain { margin: 10px 0; color: var(--muted); font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+    td.mono, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    pre { background: var(--code); padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Tenant Isolation Demo</h1>
+  <p class="lead">PostgreSQL Row-Level Security + NestJS. Log in as a user of one tenant, then try to read the other tenant's patients.</p>
+
+  <section>
+    <h2>1. Log in</h2>
+    <div class="row">
+      <label>User
+        <select id="username">
+          <option value="alice">alice (Tenant A)</option>
+          <option value="bob">bob (Tenant B)</option>
+        </select>
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="off" placeholder="DEMO_PASSWORD from .env">
+      </label>
+      <button id="login">Log in</button>
+      <button id="logout" class="secondary" disabled>Log out</button>
+    </div>
+    <div class="who" id="who">Not logged in.</div>
+  </section>
+
+  <section>
+    <h2>2. Call GET /patients</h2>
+    <div class="row">
+      <button id="mine" disabled>Load my patients</button>
+      <button id="forge" class="secondary" disabled>Try to read the other tenant</button>
+      <button id="anon" class="secondary">Call without a token</button>
+    </div>
+    <div id="result" hidden>
+      <p class="explain" id="request"></p>
+      <span class="status" id="status"></span>
+      <p class="explain" id="verdict"></p>
+      <table id="table" hidden>
+        <thead><tr><th>Patient</th><th>Tenant</th><th>Patient ID</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <details><summary>Raw response</summary><pre id="raw"></pre></details>
+    </div>
+  </section>
+</main>
+<script src="/demo.js"></script>
+</body>
+</html>

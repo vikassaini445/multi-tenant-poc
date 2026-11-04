@@ -44,6 +44,8 @@ services:
       JWT_ISSUER: mt-poc-auth
       JWT_AUDIENCE: mt-poc-api
       PORT: "3000"
+      DEMO_LOGIN_ENABLED: "true"
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo-password}
     ports:
       - "${API_HOST_PORT:-3000}:3000"
     depends_on:
