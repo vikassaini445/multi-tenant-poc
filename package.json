@@ -17,7 +17,7 @@
     "db:setup": "ts-node scripts/migrate.ts bootstrap migrate seed",
     "token": "ts-node scripts/issue-token.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "jest --config test/jest-e2e.json --runInBand"
+    "test": "jest --config test/jest-e2e.json --runInBand --forceExit"
   },
   "dependencies": {
     "@nestjs/common": "11.2.8",

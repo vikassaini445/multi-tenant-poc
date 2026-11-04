@@ -106,6 +106,16 @@ describe('Test A: tenant isolation (database level)', () => {
       expect(err.code).toBe('42501');
     });
 
+    it('cannot move its rows into the other tenant with a column-free UPDATE (UPDATE WITH CHECK alone)', async () => {
+      // With a WHERE/RETURNING that reads columns, Postgres also applies the
+      // SELECT policy to the new row, which would hide a missing UPDATE
+      // WITH CHECK. No WHERE here, so only the UPDATE policy can block it.
+      const err = await inTenantTxRollback(pool, self, (c) =>
+        expectPgError(c.query('UPDATE patients SET tenant_id = $1', [other])),
+      );
+      expect(err.code).toBe('42501');
+    });
+
     it("cannot DELETE the other tenant's rows", async () => {
       const deleted = await inTenantTxRollback(pool, self, async (c) =>
         (await c.query('DELETE FROM patients WHERE id = ANY($1::uuid[])', [otherIds()])).rowCount,
