@@ -1,0 +1,46 @@
+{
+  "name": "multi-tenant-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant data isolation POC using PostgreSQL Row-Level Security and NestJS",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/main.js",
+    "start:dev": "ts-node src/main.ts",
+    "db:bootstrap": "ts-node scripts/migrate.ts bootstrap",
+    "db:migrate": "ts-node scripts/migrate.ts migrate",
+    "db:seed": "ts-node scripts/migrate.ts seed",
+    "db:setup": "ts-node scripts/migrate.ts bootstrap migrate seed",
+    "token": "ts-node scripts/issue-token.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --config test/jest-e2e.json --runInBand"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.2.8",
+    "@nestjs/core": "11.2.8",
+    "@nestjs/jwt": "11.0.2",
+    "@nestjs/platform-express": "11.2.8",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "11.2.8",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.19.1",
+    "@types/pg": "8.23.1",
+    "@types/supertest": "7.2.1",
+    "jest": "30.5.2",
+    "supertest": "7.3.1",
+    "ts-jest": "29.4.15",
+    "ts-node": "10.9.2",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "multer": "2.5.0"
+  }
+}
