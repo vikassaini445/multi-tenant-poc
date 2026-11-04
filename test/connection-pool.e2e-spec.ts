@@ -97,6 +97,25 @@ describe('Test D: connection pool isolation', () => {
     expect(b).toMatchObject({ contextAtStart: TENANT_B, tenants: [TENANT_B] });
   });
 
+  it('a SQL error swallowed by the work function is not reported as a successful commit', async () => {
+    // PostgreSQL turns COMMIT of an aborted transaction into ROLLBACK silently.
+    await expect(
+      tx.run(TENANT_A, async (q) => {
+        await q.query('SELECT * FROM no_such_table').catch(() => undefined);
+        return 'looks fine';
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('a query handle that escapes the work function cannot be used after the transaction ends', async () => {
+    let escaped: { query: (sql: string) => Promise<unknown> } | undefined;
+    await tx.run(TENANT_A, async (q) => {
+      escaped = q;
+    });
+    // Without a guard this would run on a pooled connection that may now belong to another tenant.
+    await expect(escaped!.query('SELECT id FROM patients')).rejects.toThrow();
+  });
+
   it('rejects a non-UUID tenant before touching the database', async () => {
     await expect(tx.run("' OR 1=1 --", async () => 'unreachable')).rejects.toThrow();
     await expect(tx.run('', async () => 'unreachable')).rejects.toThrow();
