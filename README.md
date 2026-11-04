@@ -116,10 +116,10 @@ With `DEMO_LOGIN_ENABLED=true` (set in `.env.example` and Docker Compose),
 open **http://localhost:3000/** (the *TenantGuard* dashboard), log in as `alice` (Tenant A) or `bob`
 (Tenant B) with password `demo-password` (`DEMO_PASSWORD`), then:
 
-- **Load my patients** → only your tenant's patients.
-- **Try to read the other tenant** → sends the other tenant's ID in
+- **Load My Patients** → only your tenant's patients.
+- **Attempt Cross-Tenant Access** → sends the other tenant's ID in
   `X-Tenant-Id` and `?tenant_id=`; it is ignored, you still get only your own.
-- **Call without a token** → 401.
+- **Request Without Authentication** → 401.
 
 `POST /auth/demo-login {"username","password"}` maps the user to its tenant
 **on the server**; a `tenant_id` in the login body is ignored. With the flag
@@ -255,5 +255,5 @@ There is no `|| true` anywhere; Jest's non-zero exit fails the step, and a
 
 ## Development log
 
-See [docs/development-log.md](docs/development-log.md) and the prompt in
+See [docs/development-log.md](docs/development-log.md) and the prompts used, verbatim, in
 [docs/prompts/](docs/prompts/).
