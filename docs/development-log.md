@@ -300,3 +300,62 @@ original POC is unchanged unless the flag is set.
   tenant" (Tenant B ID in `X-Tenant-Id` and `?tenant_id=`) HTTP 200, still only
   Tenant A's 2 patients → "Call without a token" HTTP 401. Only console error:
   that intentional 401. No script/CSP errors.
+
+---
+
+## Phase 8 — UI redesign ("TenantGuard" dashboard)
+
+**Prompt:** [prompts/03-ui-redesign-prompt.md](prompts/03-ui-redesign-prompt.md).
+
+**Scope:** `public/index.html` and `public/demo.js` only. No change to
+`src/`, `database/`, `test/`, `scripts/`, CI or `package.json` (verified with
+`git diff` — empty for those paths).
+
+**Constraints found during inspection (not changed, since the backend was out of scope):**
+- The demo controller serves exactly two files, so all CSS is inline in the
+  HTML and the "reusable components" are small DOM factory functions in
+  `demo.js` (`badge`, `alertBox`, `statCard`, `headerPill`, response viewer).
+- The CSP has no `font-src`, so Inter cannot be loaded from a CDN; the font
+  stack uses Inter if installed locally, else the system UI font. Icons are an
+  inline SVG sprite (external/`data:` images are blocked).
+- The frontend is plain JavaScript (no TypeScript or build step); kept as-is
+  rather than introducing tooling.
+- No status/health endpoint exists, so indicators are derived honestly:
+  API = real `HEAD /demo.js` + every call's outcome; RLS isolation = "Not
+  tested" until Test 2 returns no foreign rows this session ("Leak detected"
+  is sticky); Connection Pool card is labelled "Covered by automated tests",
+  not shown as a live green check.
+
+**Deviation from the prompt's example text (deliberate):** the prompt's
+cross-tenant example says "Access denied…". The real API does not deny — it
+ignores the forged ID and returns 200 with the caller's own records. The
+dashboard therefore says "Cross-tenant access blocked. The forged Tenant B
+identifier was ignored…". The "Access denied" message is still shown if the
+API ever answers 403.
+
+**Bugs found in Claude Code's own redesign (real):**
+1. **Horizontal overflow at 320 px** (`scrollWidth` 348). Found by the
+   automated responsive check; cause: `white-space: nowrap` badges inside
+   the stat cards, and a non-wrapping code-panel header. Fixed; 320 px now 320.
+2. **`hidden` attribute overridden by CSS.** Spotted in the mobile screenshot:
+   "Log in to enable tests 1 and 2." stayed visible while logged in, because
+   `.console-note { display: flex }` beats the UA `[hidden]` rule. The same
+   applied to the identity panel (`display: grid`). Confirmed by re-running
+   the checks with the fix removed: the identity panel was visible when
+   logged out — empty on first load and **still showing the previous user's
+   name and tenant after logout**. Fixed with `[hidden] { display: none !important }`;
+   checks for both elements added.
+
+**Verification (actually run):**
+- Headless Chrome, driven via the DevTools protocol against the running API —
+  50 checks, all passing: initial state claims nothing (not authenticated,
+  RLS "Not tested", tests 1–2 disabled); wrong password → error, still
+  unauthenticated; show/hide password; login as alice → header/card/identity
+  show Tenant A, password cleared, no token text anywhere in the page;
+  Test 1 → 200, 2 Tenant A rows; Test 2 → forged query/header, 200, no
+  Tenant B rows, RLS indicator → "Verified"; Raw view = exact body, Formatted
+  = highlighted JSON, collapse/expand; Test 3 → 401, red rejection, still
+  logged in; header logout clears tenant, card and identity panel; bob's
+  Test 2 → only Tenant B rows; no horizontal overflow at 1440/1024/820/390/320 px;
+  no JS exceptions or CSP violations (only the two intentional 401s).
+- `npm test`: 7 suites, **74 passed, 0 failed, 0 pending**, exit 0 — unchanged.

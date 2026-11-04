@@ -113,7 +113,7 @@ reasonable in production, but it would mask an RLS regression in these tests.
 ## Browser demo
 
 With `DEMO_LOGIN_ENABLED=true` (set in `.env.example` and Docker Compose),
-open **http://localhost:3000/**, log in as `alice` (Tenant A) or `bob`
+open **http://localhost:3000/** (the *TenantGuard* dashboard), log in as `alice` (Tenant A) or `bob`
 (Tenant B) with password `demo-password` (`DEMO_PASSWORD`), then:
 
 - **Load my patients** → only your tenant's patients.
@@ -125,6 +125,11 @@ open **http://localhost:3000/**, log in as `alice` (Tenant A) or `bob`
 **on the server**; a `tenant_id` in the login body is ignored. With the flag
 unset (the default, and in CI) the page and the endpoint return 404. The page
 uses a strict CSP (no inline scripts) and keeps the token in memory only.
+
+Dashboard status indicators only report what was observed: *RLS isolation*
+shows "Not tested" until the cross-tenant test returns no foreign records in
+the current browser session; *API* comes from a real request; the tenant
+indicator is cleared on logout, on a 401, and when the token's `exp` passes.
 
 ## API
 

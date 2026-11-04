@@ -3,87 +3,373 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tenant Isolation Demo</title>
+  <meta name="color-scheme" content="light">
+  <title>TenantGuard</title>
   <style>
+    /* Web fonts can't load under the server's CSP (no font-src); Inter is used when installed locally. */
     :root {
-      --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5c6577; --border: #dde1e8;
-      --accent: #2f5bd3; --ok: #1d7a46; --bad: #b42318; --code: #f0f2f6;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #12151b; --card: #1a1f27; --text: #e6e9ef; --muted: #9aa3b2; --border: #2c3340;
-        --accent: #7c9cf5; --ok: #4cc38a; --bad: #f97066; --code: #232a35;
-      }
+      --navy-900: #0b1f3a;
+      --navy-800: #13294b;
+      --navy-700: #1c3762;
+      --blue-600: #1f6feb;
+      --blue-700: #1a5fd0;
+      --blue-50: #eaf2fe;
+      --bg: #f2f5f9;
+      --card: #ffffff;
+      --border: #dfe5ee;
+      --border-strong: #c9d2df;
+      --text: #14213d;
+      --text-2: #4a5872;
+      --text-3: #7a879c;
+      --green-700: #137a43; --green-50: #e8f6ee; --green-200: #b5e2c8;
+      --red-700: #b42318;   --red-50: #fdeceb;   --red-200: #f5c2bd;
+      --amber-700: #a15c07; --amber-50: #fdf4e3; --amber-200: #f3d79c;
+      --gray-50: #f4f6f9;   --gray-200: #dfe4eb;
+      --code-bg: #0f1b2d; --code-text: #d6e2f5; --code-key: #8cc4ff; --code-str: #a8e1a1; --code-num: #f5c97a; --code-lit: #f59e9e;
+      --radius: 14px;
+      --radius-sm: 10px;
+      --shadow: 0 1px 2px rgba(16, 32, 64, .05), 0 2px 8px rgba(16, 32, 64, .05);
+      --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-    main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
-    h1 { font-size: 22px; margin: 0 0 4px; }
-    p.lead { color: var(--muted); margin: 0 0 24px; }
-    section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-    h2 { font-size: 15px; margin: 0 0 12px; }
-    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
-    label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-    select, input { font: inherit; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); min-width: 180px; }
-    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
-    button.secondary { background: transparent; color: var(--accent); }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    .who { margin-top: 12px; font-size: 14px; color: var(--muted); }
-    .who strong { color: var(--text); }
-    .status { display: inline-block; font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
-    .status.ok { color: var(--ok); border: 1px solid var(--ok); }
-    .status.bad { color: var(--bad); border: 1px solid var(--bad); }
-    .explain { margin: 10px 0; color: var(--muted); font-size: 14px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
-    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
-    td.mono, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
-    pre { background: var(--code); padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; }
-    details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    /* Components set display:flex/grid; keep the hidden attribute authoritative. */
+    [hidden] { display: none !important; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    svg.icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    button { font: inherit; }
+    :focus-visible { outline: 3px solid rgba(31, 111, 235, .35); outline-offset: 2px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* ---------- Header ---------- */
+    .topbar { background: var(--navy-900); color: #fff; border-bottom: 1px solid #0a1a31; }
+    .topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+    .brand-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--blue-600); display: grid; place-items: center; }
+    .brand-mark svg.icon { width: 19px; height: 19px; color: #fff; }
+    .brand-name { font-weight: 700; font-size: 16px; letter-spacing: -.01em; line-height: 1.2; }
+    .brand-sub { font-size: 12px; color: #9fb3d1; line-height: 1.2; }
+    .header-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .hpill {
+      display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px;
+      background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); font-size: 12.5px; color: #dbe5f4; white-space: nowrap;
+    }
+    .hpill .k { color: #9fb3d1; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #8696ad; flex: none; }
+    .dot.ok { background: #3ccf7f; } .dot.bad { background: #ff6b5e; } .dot.warn { background: #f5b83d; } .dot.info { background: #5aa2ff; }
+    .btn-header {
+      height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: #fff;
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; transition: background .15s;
+    }
+    .btn-header:hover:not(:disabled) { background: rgba(255, 255, 255, .1); }
+    .btn-header:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ---------- Layout ---------- */
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 24px 48px; }
+    .section-title { font-size: 13px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 12px; }
+    .overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .workspace { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .stack { display: grid; gap: 16px; min-width: 0; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
+    .card-head { padding: 16px 20px 0; display: flex; align-items: center; gap: 10px; }
+    .card-head h2 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -.005em; }
+    .card-head .spacer { flex: 1; }
+    .card-body { padding: 16px 20px 20px; }
+    .card-desc { margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
+
+    /* ---------- Stat cards ---------- */
+    .stat { padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; }
+    .stat-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--blue-50); color: var(--blue-700); display: grid; place-items: center; flex: none; }
+    .stat-icon svg.icon { width: 19px; height: 19px; }
+    .stat-main { min-width: 0; flex: 1; }
+    .stat-label { font-size: 12px; color: var(--text-3); font-weight: 500; }
+    .stat-value { font-size: 15.5px; font-weight: 650; color: var(--text); margin: 2px 0 4px; overflow-wrap: anywhere; }
+    .stat-detail { font-size: 12.5px; color: var(--text-2); margin: 0 0 10px; overflow-wrap: anywhere; }
+
+    /* ---------- Badges ---------- */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--text-2); white-space: nowrap; max-width: 100%;
+    }
+    .stat .badge { white-space: normal; border-radius: 10px; line-height: 1.35; }
+    .badge .dot { width: 7px; height: 7px; }
+    .badge.ok { background: var(--green-50); border-color: var(--green-200); color: var(--green-700); }
+    .badge.bad { background: var(--red-50); border-color: var(--red-200); color: var(--red-700); }
+    .badge.warn { background: var(--amber-50); border-color: var(--amber-200); color: var(--amber-700); }
+    .badge.info { background: var(--blue-50); border-color: #c4d9fb; color: var(--blue-700); }
+
+    /* ---------- Form controls ---------- */
+    .field { display: grid; gap: 6px; margin-bottom: 14px; }
+    .field label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .hint { font-size: 12px; color: var(--text-3); }
+    .control {
+      width: 100%; height: 40px; padding: 0 12px; font: inherit; color: var(--text); background: #fff;
+      border: 1px solid var(--border-strong); border-radius: var(--radius-sm); transition: border-color .15s, box-shadow .15s;
+    }
+    .control:hover { border-color: #aab6c8; }
+    .control:focus { outline: none; border-color: var(--blue-600); box-shadow: 0 0 0 3px rgba(31, 111, 235, .18); }
+    .select-wrap { position: relative; }
+    .select-wrap select { appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer; }
+    .select-wrap svg.icon { position: absolute; right: 12px; top: 12px; color: var(--text-3); pointer-events: none; }
+    .password-wrap { position: relative; }
+    .password-wrap .control { padding-right: 44px; }
+    .icon-btn {
+      position: absolute; right: 4px; top: 4px; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent;
+      color: var(--text-3); display: grid; place-items: center; cursor: pointer; transition: background .15s, color .15s;
+    }
+    .icon-btn:hover { background: var(--gray-50); color: var(--text); }
+
+    .btn {
+      height: 40px; padding: 0 16px; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 14px;
+      transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--navy-800); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--navy-700); }
+    .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
+    .btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+    .btn .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+    .alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; margin-top: 14px; border: 1px solid; }
+    .alert svg.icon { margin-top: 1px; }
+    .alert.ok { background: var(--green-50); border-color: var(--green-200); color: var(--green-700); }
+    .alert.bad { background: var(--red-50); border-color: var(--red-200); color: var(--red-700); }
+    .alert.warn { background: var(--amber-50); border-color: var(--amber-200); color: var(--amber-700); }
+    .alert.info { background: var(--blue-50); border-color: #c4d9fb; color: var(--navy-700); }
+
+    .identity { margin-top: 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--gray-50); border: 1px solid var(--border); display: grid; gap: 6px; font-size: 13px; }
+    .identity-row { display: flex; justify-content: space-between; gap: 12px; }
+    .identity-row .k { color: var(--text-3); white-space: nowrap; }
+    .identity-row .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+    .identity-row .v.mono { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+
+    /* ---------- Test console ---------- */
+    .tests { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .test {
+      text-align: left; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--text);
+      display: grid; gap: 8px; align-content: start; transition: border-color .15s, box-shadow .15s, background .15s; min-width: 0;
+    }
+    .test:hover:not(:disabled) { border-color: var(--blue-600); box-shadow: 0 0 0 3px rgba(31, 111, 235, .1); }
+    .test:disabled { cursor: not-allowed; background: var(--gray-50); }
+    .test:disabled .test-title, .test:disabled .test-icon { opacity: .5; }
+    .test[aria-busy="true"] { border-color: var(--blue-600); }
+    .test-top { display: flex; align-items: center; gap: 10px; }
+    .test-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+    .test-icon.t-own { background: var(--blue-50); color: var(--blue-700); }
+    .test-icon.t-cross { background: var(--amber-50); color: var(--amber-700); }
+    .test-icon.t-anon { background: var(--red-50); color: var(--red-700); }
+    .test-num { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+    .test-title { font-weight: 600; font-size: 14px; }
+    .test-desc { font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+    .test-expect { font-size: 12px; color: var(--text-3); border-top: 1px dashed var(--border); padding-top: 8px; }
+    .test-expect b { color: var(--text-2); font-weight: 600; }
+    .console-note { margin-top: 12px; font-size: 12.5px; color: var(--text-3); display: flex; gap: 6px; align-items: center; }
+
+    /* ---------- Response panel ---------- */
+    .empty { padding: 36px 20px; text-align: center; color: var(--text-3); }
+    .empty svg.icon { width: 28px; height: 28px; color: var(--border-strong); margin-bottom: 6px; }
+    .resp-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--gray-50); }
+    .method { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--blue-700); background: var(--blue-50); padding: 2px 7px; border-radius: 6px; }
+    .endpoint { font-family: var(--mono); font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; min-width: 0; flex: 1 1 220px; }
+    .elapsed { font-size: 12px; color: var(--text-3); }
+    .meta { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 16px; margin: 14px 0 0; font-size: 13px; }
+    .meta dt { color: var(--text-3); }
+    .meta dd { margin: 0; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+    .meta code { font-family: var(--mono); font-size: 12px; background: var(--gray-50); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; }
+    .table-wrap { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr:last-child td { border-bottom: 0; }
+    th { background: var(--gray-50); color: var(--text-3); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    td.mono { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+    .tenant-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+    .code-head { margin-top: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .code-head .label { font-size: 13px; font-weight: 600; }
+    .seg { margin-left: auto; display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+    .seg button { border: 0; background: #fff; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+    .seg button[aria-pressed="true"] { background: var(--navy-800); color: #fff; }
+    .toggle-link { border: 0; background: none; color: var(--blue-700); font-weight: 600; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border-radius: 6px; }
+    .toggle-link:hover { background: var(--blue-50); }
+    .toggle-link svg.icon { width: 14px; height: 14px; transition: transform .15s; }
+    .toggle-link[aria-expanded="true"] svg.icon { transform: rotate(180deg); }
+    pre.code {
+      margin: 8px 0 0; background: var(--code-bg); color: var(--code-text); border-radius: var(--radius-sm); padding: 14px 16px;
+      font: 12.5px/1.6 var(--mono); max-height: 360px; overflow: auto; white-space: pre; tab-size: 2;
+    }
+    pre.code.wrap { white-space: pre-wrap; word-break: break-all; }
+    .j-key { color: var(--code-key); } .j-str { color: var(--code-str); } .j-num { color: var(--code-num); } .j-lit { color: var(--code-lit); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1080px) {
+      .tests { grid-template-columns: minmax(0, 1fr); }
+      .test { grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; }
+      .test-top { grid-row: span 3; align-self: start; }
+      .test-top .test-num { display: none; }
+    }
+    @media (max-width: 900px) {
+      .overview { grid-template-columns: minmax(0, 1fr); }
+      .workspace { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .topbar-inner { padding: 12px 16px; }
+      .brand { width: 100%; }
+      .header-status { width: 100%; }
+      main { padding: 16px 16px 40px; }
+      .card-head { padding: 14px 16px 0; }
+      .card-body { padding: 14px 16px 16px; }
+      .meta { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .meta dd { margin-bottom: 8px; }
+      .test { grid-template-columns: minmax(0, 1fr); }
+      .test-top { grid-row: auto; }
+      pre.code { white-space: pre-wrap; word-break: break-all; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <h1>Tenant Isolation Demo</h1>
-  <p class="lead">PostgreSQL Row-Level Security + NestJS. Log in as a user of one tenant, then try to read the other tenant's patients.</p>
+  <!-- Icon sprite (inline: the CSP blocks external and data: images). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7l10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.9 4.2A10.4 10.4 0 0 1 12 4c6.5 0 10 8 10 8a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+  </svg>
 
-  <section>
-    <h2>1. Log in</h2>
-    <div class="row">
-      <label>User
-        <select id="username">
-          <option value="alice">alice (Tenant A)</option>
-          <option value="bob">bob (Tenant B)</option>
-        </select>
-      </label>
-      <label>Password
-        <input id="password" type="password" autocomplete="off" placeholder="DEMO_PASSWORD from .env">
-      </label>
-      <button id="login">Log in</button>
-      <button id="logout" class="secondary" disabled>Log out</button>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark"><svg class="icon"><use href="#i-shield-check"/></svg></div>
+        <div>
+          <div class="brand-name">TenantGuard</div>
+          <div class="brand-sub">Multi-Tenant Security Demonstration</div>
+        </div>
+      </div>
+      <div class="header-status" aria-label="System status">
+        <span class="hpill" title="Result of the cross-tenant test in this browser session"><span class="dot" id="h-rls-dot"></span><span class="k">RLS isolation</span><span id="h-rls">Not tested</span></span>
+        <span class="hpill" title="Whether the API server responds"><span class="dot" id="h-api-dot"></span><span class="k">API</span><span id="h-api">Checking…</span></span>
+        <span class="hpill"><span class="dot" id="h-tenant-dot"></span><span class="k">Tenant</span><span id="h-tenant">Not authenticated</span></span>
+        <button class="btn-header" id="h-logout" type="button" disabled><svg class="icon"><use href="#i-logout"/></svg>Log out</button>
+      </div>
     </div>
-    <div class="who" id="who">Not logged in.</div>
-  </section>
+  </header>
 
-  <section>
-    <h2>2. Call GET /patients</h2>
-    <div class="row">
-      <button id="mine" disabled>Load my patients</button>
-      <button id="forge" class="secondary" disabled>Try to read the other tenant</button>
-      <button id="anon" class="secondary">Call without a token</button>
+  <main>
+    <h1 class="section-title">Tenant Isolation Overview</h1>
+    <section class="overview" aria-label="Tenant isolation overview">
+      <article class="card stat" id="card-tenant"></article>
+      <article class="card stat" id="card-rls"></article>
+      <article class="card stat" id="card-pool"></article>
+    </section>
+
+    <div class="workspace">
+      <section class="card" aria-labelledby="auth-title">
+        <div class="card-head">
+          <h2 id="auth-title">Authenticate Tenant</h2>
+          <span class="spacer"></span>
+          <span id="auth-badge"></span>
+        </div>
+        <div class="card-body">
+          <p class="card-desc" style="margin:0 0 16px">Sign in as a demo user. The server assigns the tenant from the user account — the client cannot choose it.</p>
+          <form id="login-form" novalidate>
+            <div class="field">
+              <label for="username">User</label>
+              <div class="select-wrap">
+                <select id="username" class="control">
+                  <option value="alice">alice (Tenant A)</option>
+                  <option value="bob">bob (Tenant B)</option>
+                </select>
+                <svg class="icon"><use href="#i-chevron"/></svg>
+              </div>
+            </div>
+            <div class="field">
+              <label for="password">Password</label>
+              <div class="password-wrap">
+                <input id="password" class="control" type="password" autocomplete="off" spellcheck="false" aria-describedby="password-hint">
+                <button type="button" class="icon-btn" id="toggle-password" aria-label="Show password" aria-pressed="false">
+                  <svg class="icon"><use href="#i-eye"/></svg>
+                </button>
+              </div>
+              <span class="hint" id="password-hint">Set by <code>DEMO_PASSWORD</code> in the server's .env.</span>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="login"><svg class="icon"><use href="#i-login"/></svg><span>Log in</span></button>
+              <button type="button" class="btn btn-secondary" id="logout" disabled><svg class="icon"><use href="#i-logout"/></svg>Log out</button>
+            </div>
+          </form>
+          <div id="auth-message" role="status" aria-live="polite"></div>
+          <div class="identity" id="identity" hidden></div>
+        </div>
+      </section>
+
+      <div class="stack">
+        <section class="card" aria-labelledby="console-title">
+          <div class="card-head">
+            <svg class="icon" style="color:var(--text-3)"><use href="#i-terminal"/></svg>
+            <h2 id="console-title">Tenant Isolation Test Console</h2>
+          </div>
+          <div class="card-body">
+            <div class="tests">
+              <button type="button" class="test" id="test-own" disabled>
+                <span class="test-top"><span class="test-icon t-own"><svg class="icon"><use href="#i-users"/></svg></span><span class="test-num">TEST 1</span></span>
+                <span class="test-title">Load My Patients</span>
+                <span class="test-desc">GET /patients with your token. The SQL has no tenant filter; PostgreSQL RLS decides which rows are visible.</span>
+                <span class="test-expect"><b>Expected:</b> 200, only your tenant's records</span>
+              </button>
+              <button type="button" class="test" id="test-cross" disabled>
+                <span class="test-top"><span class="test-icon t-cross"><svg class="icon"><use href="#i-swap"/></svg></span><span class="test-num">TEST 2</span></span>
+                <span class="test-title">Attempt Cross-Tenant Access</span>
+                <span class="test-desc">Your token, plus the other tenant's ID in the <code>X-Tenant-Id</code> header and <code>?tenant_id=</code> query.</span>
+                <span class="test-expect"><b>Expected:</b> forged ID ignored, no foreign records</span>
+              </button>
+              <button type="button" class="test" id="test-anon">
+                <span class="test-top"><span class="test-icon t-anon"><svg class="icon"><use href="#i-unlock"/></svg></span><span class="test-num">TEST 3</span></span>
+                <span class="test-title">Request Without Authentication</span>
+                <span class="test-desc">GET /patients with no Authorization header.</span>
+                <span class="test-expect"><b>Expected:</b> 401, no data</span>
+              </button>
+            </div>
+            <div class="console-note" id="console-note"><svg class="icon"><use href="#i-info"/></svg><span>Log in to enable tests 1 and 2.</span></div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="response-title">
+          <div class="card-head">
+            <svg class="icon" style="color:var(--text-3)"><use href="#i-server"/></svg>
+            <h2 id="response-title">API Response</h2>
+            <span class="spacer"></span>
+            <span id="response-badge"></span>
+          </div>
+          <div class="card-body" id="response" aria-live="polite">
+            <div class="empty"><svg class="icon"><use href="#i-terminal"/></svg><div>Run a test to see the live API response.</div></div>
+          </div>
+        </section>
+      </div>
     </div>
-    <div id="result" hidden>
-      <p class="explain" id="request"></p>
-      <span class="status" id="status"></span>
-      <p class="explain" id="verdict"></p>
-      <table id="table" hidden>
-        <thead><tr><th>Patient</th><th>Tenant</th><th>Patient ID</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-      <details><summary>Raw response</summary><pre id="raw"></pre></details>
-    </div>
-  </section>
-</main>
-<script src="/demo.js"></script>
+  </main>
+  <script src="/demo.js"></script>
 </body>
 </html>
